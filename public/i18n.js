@@ -10,6 +10,7 @@ const STRINGS = {
   tr: {
     tagline: 'Kulüp ya da ülke seçilir. İkisine de uyan futbolcuyu ilk yazan maçı alır.',
     checking: 'Kontrol ediliyor',
+    google_continue: 'Google ile devam et',
     delete_account: 'Hesabımı sil',
     delete_confirm: 'Hesabın, istatistiklerin ve sıralamadaki yerin kalıcı olarak silinecek. Bu geri alınamaz. Emin misin?',
     account_deleted: 'Hesabın silindi.',
@@ -123,6 +124,7 @@ const STRINGS = {
   en: {
     tagline: 'Clubs or countries get picked. Name a player who fits both before your rival does.',
     checking: 'Checking',
+    google_continue: 'Continue with Google',
     delete_account: 'Delete my account',
     delete_confirm: 'Your account, stats and leaderboard position will be permanently deleted. This cannot be undone. Are you sure?',
     account_deleted: 'Your account has been deleted.',
@@ -236,6 +238,7 @@ const STRINGS = {
   es: {
     tagline: 'Se eligen clubes o países. Gana quien antes nombre a un jugador que encaje en ambos.',
     checking: 'Comprobando',
+    google_continue: 'Continuar con Google',
     delete_account: 'Eliminar mi cuenta',
     delete_confirm: 'Tu cuenta, estadísticas y posición en la clasificación se eliminarán para siempre. No se puede deshacer. ¿Seguro?',
     account_deleted: 'Tu cuenta ha sido eliminada.',
@@ -349,6 +352,7 @@ const STRINGS = {
   de: {
     tagline: 'Vereine oder Länder werden gewählt. Wer zuerst einen passenden Spieler nennt, gewinnt.',
     checking: 'Wird geprüft',
+    google_continue: 'Mit Google fortfahren',
     delete_account: 'Mein Konto löschen',
     delete_confirm: 'Dein Konto, deine Statistiken und dein Ranglistenplatz werden dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden. Bist du sicher?',
     account_deleted: 'Dein Konto wurde gelöscht.',

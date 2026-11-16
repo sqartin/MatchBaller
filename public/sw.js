@@ -1,8 +1,8 @@
 // Service worker: uygulama kabuğunu önbelleğe alır, internet yokken bilgi sayfası gösterir.
 // Oyun online olduğu için veri (socket.io, /api) her zaman ağdan gelir.
-const VERSION = 'mb-v3';
+const VERSION = 'mb-v4';
 const SHELL = [
-  '/', '/index.html', '/style.css', '/app.js', '/i18n.js', '/sfx.js', '/offline.html',
+  '/', '/index.html', '/style.css', '/app.js', '/i18n.js', '/sfx.js', '/ads.js', '/config.js', '/offline.html',
   '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png',
 ];
 

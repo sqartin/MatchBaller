@@ -40,7 +40,7 @@ Match Baller'da dünyanın dört bir yanından rakiplerle 1'e 1 kapışırsın. 
 🎉 ARKADAŞLARINLA PAYLAŞ
 Galibiyetini tek dokunuşla WhatsApp'a ya da Instagram'a gönder, rövanşa davet et.
 
-Türkçe, İngilizce, İspanyolca ve Almanca. Reklam yok.
+Türkçe, İngilizce, İspanyolca ve Almanca. Maç sırasında asla reklam yok.
 
 Futbol verileri Wikidata ve Wikimedia Commons'tan alınır.
 
@@ -84,7 +84,7 @@ Match Baller puts you head-to-head with real opponents. You each pick a club, tw
 🎉 SHARE WITH FRIENDS
 Send your win to WhatsApp or Instagram in one tap and challenge them to a rematch.
 
-English, Turkish, Spanish and German. No ads.
+English, Turkish, Spanish and German. Never any ads during a match.
 
 Football data from Wikidata and Wikimedia Commons.
 
@@ -115,11 +115,13 @@ Football data from Wikidata and Wikimedia Commons.
 - Kullanıcılar birbiriyle etkileşir mi: Evet (sadece kullanıcı adı ve oyun içi sonuçlar; sohbet yok)
 - Konum paylaşımı: Hayır
 - Dijital satın alma: Hayır
+- **Reklam içerir: Evet** (Play Console → Uygulama içeriği → Reklamlar)
 
 ## Veri güvenliği formu için cevaplar
-- **Toplanan veriler:** Ad (Google ile girişte), Kullanıcı kimlikleri, Uygulama etkinliği (oyun istatistikleri)
-- **Amaç:** Uygulama işlevselliği, Hesap yönetimi
-- **Paylaşım:** Üçüncü taraflarla paylaşılmıyor
+- **Toplanan veriler:**
+  - Ad (Google ile girişte), Kullanıcı kimlikleri, Uygulama etkinliği (oyun istatistikleri) → Amaç: Uygulama işlevselliği, Hesap yönetimi
+  - **Cihaz veya diğer kimlikler** (reklam kimliği), **Yaklaşık konum**, **Uygulama etkileşimleri** → AdMob SDK toplar. Amaç: Reklam veya pazarlama, Analiz, Dolandırıcılık önleme
+- **Paylaşım:** Reklam kimliği ve ilgili veriler Google AdMob ile paylaşılır; diğer veriler paylaşılmaz
 - **Aktarımda şifreleme:** Evet (HTTPS)
 - **Silme talebi:** Evet, uygulama içinden (Ayarlar → Hesabımı sil) ve e-postayla
 - **Gizlilik politikası URL'si:** `https://<alan-adın>/privacy.html`

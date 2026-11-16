@@ -69,7 +69,9 @@ Client ID yoksa sadece misafir girişi görünür.
 
 ## Play Store
 
-Adım adım yayın rehberi: [PLAY_STORE.md](PLAY_STORE.md). Mağaza metinleri ve görseller: `store/`.
+Android uygulaması Capacitor ile paketlenir, AdMob reklamları içerir ve GitHub Actions'ta derlenir (`.github/workflows/android.yml`). Adım adım yayın rehberi: [PLAY_STORE.md](PLAY_STORE.md). Mağaza metinleri ve görseller: `store/`.
+
+Uygulama için web dosyaları: `APP_API_BASE=https://... npm run android:sync`
 
 ## Telefona uygulama olarak
 

@@ -1,0 +1,68 @@
+# Android uygulamasını (.aab) derler ve imzalar. Play Console'a yüklenecek dosya "Artifacts" bölümünden indirilir.
+#
+# Çalıştırmak için: GitHub → Actions → "Android AAB" → Run workflow
+#
+# Gerekenler (GitHub → Settings → Secrets and variables → Actions):
+#   Variables:  APP_API_BASE (https://...onrender.com), GOOGLE_CLIENT_ID,
+#               ADMOB_APP_ID, ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID  (AdMob olmadan TEST reklamları kullanılır)
+#   Secrets:    KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+name: Android AAB
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Web dosyaları (www/)
+        run: npm run build:app
+        env:
+          APP_API_BASE: ${{ vars.APP_API_BASE }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
+          ADMOB_INTERSTITIAL_ID: ${{ vars.ADMOB_INTERSTITIAL_ID }}
+
+      - name: Capacitor senkron
+        run: npx cap sync android
+
+      - name: İmza anahtarı
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+
+      - name: AAB derle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: match-baller-aab-${{ github.run_number }}
+          path: android/app/build/outputs/bundle/release/app-release.aab

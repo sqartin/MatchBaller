@@ -420,6 +420,13 @@ body.in-match #screen-pick, body.in-match #screen-game { padding-top: calc(max(8
 .rr-next { font-size: 13px; opacity: .75; }
 .result-score { margin: 0; font: 400 44px var(--display); text-shadow: 0 4px 0 var(--grass-dark); }
 
+/* ---------- Reklam bannerı (sadece menülerde) ---------- */
+body.has-banner .screen { padding-bottom: calc(var(--ad-h, 60px) + 16px); }
+
+/* ---------- Uygulama içi Google butonu ---------- */
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; font: 700 17px var(--body); }
+.btn-google svg { width: 22px; height: 22px; }
+
 /* ---------- Hesap silme & yasal ---------- */
 .link-danger { background: none; border: 0; color: var(--red); font: 700 15px var(--body); text-decoration: underline; cursor: pointer; padding: 6px; align-self: center; }
 .legal { text-align: center; margin: 0; font-size: 13px; }

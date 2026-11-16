@@ -1,87 +1,107 @@
-# Match Baller'ı Play Store'a koyma rehberi
+# Match Baller'ı Play Store'a koyma rehberi (Capacitor + AdMob)
 
-Uygulama bir **Trusted Web Activity (TWA)** olarak yayınlanır: telefonda gerçek bir Android uygulaması gibi
-simgesiyle açılır, adres çubuğu olmaz; içeride Chrome motoru çalışır. Bu yüzden Google ile giriş, ses,
-titreşim ve paylaşım olduğu gibi çalışır.
+Uygulama **Capacitor** ile paketlenmiş gerçek bir Android uygulamasıdır: oyun dosyaları uygulamanın içindedir,
+oyun sunucusuna (Render) internet üzerinden bağlanır. Reklamlar **Google AdMob** ile gösterilir.
+Uygulama bu bilgisayarda değil, **GitHub Actions** üzerinde derlenir; hiçbir şey kurman gerekmez.
 
-Sıra önemli: **önce sunucu internette yayında olmalı**, sonra Android paketi oluşturulur.
+Sıra:
+1. Kod GitHub'a → 2. Sunucu Render'da → 3. İmza anahtarı → 4. Google girişi (Android) → 5. AdMob →
+6. GitHub'da derleme → 7. Play Console
 
 ---
 
-## 1. Sunucuyu yayına al (HTTPS)
+## 1. Kodu GitHub'a yükle
+GitHub'da boş bir depo aç ve kodu yükle.
 
-Uygulama telefondan bu sunucuya bağlanır. Sunucu sürekli açık olmalı ve kullanıcı verisi için **kalıcı disk** gerekir
-(yoksa her güncellemede sıralama ve istatistikler silinir).
+## 2. Sunucuyu Render'da yayına al
+1. https://dashboard.render.com → **New → Blueprint** → GitHub deposunu seç. `render.yaml` her şeyi kurar
+   (Docker, Frankfurt, `/data` kalıcı disk, `/healthz`).
+2. Ortam değişkenlerini gir: `GOOGLE_CLIENT_ID` (web client ID).
+3. Yayına girince adresin olur: `https://match-baller-xxxx.onrender.com`. Kontrol et:
+   - `/` oyun açılıyor mu, `/privacy.html` açılıyor mu.
+4. `public/privacy.html` içindeki `[İLETİŞİM E-POSTASI]` / `[CONTACT EMAIL]` yerlerine bir e-posta yaz.
+5. Google Cloud → Google Auth Platform → Clients → web client → **Authorized JavaScript origins** listesine
+   Render adresini ekle (web sürümünde Google girişi için).
 
-Projede hazır `Dockerfile` var. Docker destekleyen herhangi bir serviste çalışır. Önerilen ayarlar:
+## 3. Uygulama imza (yükleme) anahtarı
+Bu bilgisayarda bir kere çalıştır (Java kurulu). Şifreleri sen belirle ve bir yere yaz:
 
-| Ayar | Değer |
-|---|---|
-| Port | `3000` (servis `PORT` verirse otomatik kullanılır) |
-| Kalıcı disk (volume) | `/data` klasörüne bağla, 1 GB yeter |
-| Ortam değişkeni `DATA_DIR` | `/data` |
-| Ortam değişkeni `GOOGLE_CLIENT_ID` | Google Cloud'daki web client ID |
-| Sağlık kontrolü yolu | `/healthz` |
-
-Yayına alınca elinde `https://<alan-adın>` gibi bir adres olur. Kontrol et:
-- `https://<alan-adın>` → oyun açılıyor mu
-- `https://<alan-adın>/privacy.html` → gizlilik politikası açılıyor mu
-
-**Google girişi için:** Google Cloud Console → Google Auth Platform → Clients → web client → **Authorized JavaScript origins**
-listesine `https://<alan-adın>` ekle.
-
-**Gizlilik politikası:** `public/privacy.html` içindeki `[İLETİŞİM E-POSTASI]` / `[CONTACT EMAIL]` yerlerine
-kullanıcıların ulaşabileceği bir e-posta yaz.
-
-## 2. Android paketini oluştur (PWABuilder ile, bilgisayara bir şey kurmadan)
-
-1. https://www.pwabuilder.com adresine git, sitenin adresini (`https://<alan-adın>`) yaz, **Start**.
-2. **Package for stores → Android → Generate Package**.
-3. Ayarlar:
-   - **Package ID:** `com.matchballer.app` (sonradan değiştirilemez; kendine özgü bir şey seçebilirsin)
-   - **App name:** Match Baller
-   - **Launcher name:** Match Baller
-   - **Display mode:** Standalone, **Orientation:** Portrait
-   - **Signing key:** "Create new" (yeni anahtar oluştur)
-4. İnen zip içinde şunlar olur:
-   - `*.aab` → Play Console'a yükleyeceğin dosya
-   - `signing.keystore` ve `signing-key-info.txt` → **bunları güvenli bir yere yedekle.** Kaybedersen uygulamayı güncelleyemezsin.
-   - `assetlinks.json` → içindeki `sha256_cert_fingerprints` değerine bir sonraki adımda ihtiyacın var.
-
-## 3. Uygulamayı siteye bağla (adres çubuğu görünmesin)
-
-Sunucuya iki ortam değişkeni ekle ve yeniden başlat:
-
-```
-ANDROID_PACKAGE=com.matchballer.app
-ANDROID_SHA256=AA:BB:CC:...   (PWABuilder'ın verdiği parmak izi)
+```bash
+keytool -genkeypair -v -storetype PKCS12 -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Play Console, uygulamayı kendi anahtarıyla yeniden imzalar. Yükledikten sonra
-**Play Console → Test ve yayın → Uygulama bütünlüğü → Uygulama imzalama** sayfasındaki **SHA-256** parmak izini de
-virgülle ekle:
+Sonra dosyayı metne çevir (GitHub'a gizli değer olarak koymak için):
 
-```
-ANDROID_SHA256=PWABUILDER_PARMAK_IZI,PLAY_PARMAK_IZI
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("upload.keystore")) | Set-Clipboard
 ```
 
-Kontrol: `https://<alan-adın>/.well-known/assetlinks.json` bu bilgileri göstermeli.
-Bu adım atlanırsa uygulama açılır ama üstte bir adres çubuğu görünür.
+`upload.keystore` dosyasını ve şifreleri **güvenli bir yere yedekle**. Depoya asla koyma (`.gitignore` zaten engelliyor).
+Play App Signing açık olduğu için bu anahtarı kaybedersen Play desteğinden sıfırlatabilirsin, ama uğraştırır.
 
-## 4. Play Console
+SHA-1 parmak izini al (4. adım için):
 
-1. https://play.google.com/console → geliştirici hesabı (tek seferlik 25 USD). Yeni kişisel hesaplarda yayından önce
-   **en az 12 test kullanıcısıyla 14 gün kapalı test** zorunlu; bunu baştan planla.
-2. **Uygulama oluştur:** ad "Match Baller", varsayılan dil Türkçe, tür **Oyun**, ücretsiz.
-3. **Mağaza girişi:** metinler ve görseller `store/listing.md` ve `store/` klasöründe hazır.
-4. **Uygulama içeriği:** gizlilik politikası URL'si, reklam yok, içerik derecelendirme ve veri güvenliği formları
-   (cevaplar `store/listing.md` sonunda), hedef yaş grubu 13+.
-5. **Test → Kapalı test:** yeni sürüm oluştur, `.aab` dosyasını yükle, test kullanıcılarını ekle.
-6. Test süresi dolunca **Üretim**'e sürüm gönder ve incelemeye yolla.
+```bash
+keytool -list -v -keystore upload.keystore -alias upload
+```
 
-## 5. Güncellemeler
+## 4. Google girişi (Android)
+Uygulama içi tarayıcıda Google girişi çalışmaz; yerel giriş kullanılır. Google Cloud'da **Android** tipi
+bir client daha gerekir:
 
-- Oyunda yapılan değişiklikler (yeni özellik, tasarım) **sadece sunucuya** yüklenir; kullanıcılar uygulamayı açınca
-  yeni sürümü görür. Play Store'a tekrar yüklemek gerekmez.
-- Sadece uygulama adı, simgesi ya da paket ayarları değişirse PWABuilder'da **aynı imza anahtarıyla** yeni `.aab`
-  oluşturup sürüm kodunu artırarak yükle.
+1. Google Auth Platform → Clients → **Create client** → **Android**
+2. Package name: `com.matchballer.app`
+3. SHA-1: 3. adımdaki yükleme anahtarının SHA-1'i
+4. Play Console'a ilk yüklemeden sonra **Uygulama bütünlüğü → Uygulama imzalama** sayfasındaki
+   **uygulama imzalama anahtarı SHA-1**'i ile **ikinci bir Android client** daha oluştur
+   (Play'den indirilen uygulama bu anahtarla imzalanır; bu yapılmazsa mağazadan kurulan uygulamada giriş çalışmaz).
+
+Uygulama, giriş için yine **web client ID**'yi kullanır (sunucu bu kimliği doğrular); Android client'lar sadece izin içindir.
+
+## 5. AdMob
+1. https://admob.google.com → hesap aç → **Uygulamalar → Uygulama ekle** → Android, "Play'de yayında değil".
+2. **Uygulama kimliği** (`ca-app-pub-…~…`) ve iki **reklam birimi** oluştur:
+   - **Banner** (menülerde gösterilir)
+   - **Geçiş reklamı / Interstitial** (2 maçta bir, maç bittikten sonra)
+3. **Gizlilik ve mesajlaşma → GDPR** mesajı oluştur ve yayınla (AB kullanıcıları için onay formu; uygulama bunu otomatik gösterir).
+4. Render'a `ADMOB_PUBLISHER_ID=pub-xxxxxxxxxxxxxxxx` ekle → `https://<render-adresin>/app-ads.txt` dosyası otomatik oluşur.
+   Play Console'da geliştirici web sitesi olarak Render adresini yaz.
+
+> AdMob kimlikleri verilmeden derlenen uygulama **Google'ın test reklamlarını** gösterir. Bu güvenlidir ama gelir getirmez.
+> Kendi gerçek reklamlarına **asla kendin tıklama**; AdMob hesabı kapatılabilir. Test için kendi telefonunu
+> AdMob'da **test cihazı** olarak ekle.
+
+## 6. GitHub'da derle
+GitHub deposu → **Settings → Secrets and variables → Actions**:
+
+| Tür | Ad | Değer |
+|---|---|---|
+| Variable | `APP_API_BASE` | `https://match-baller-xxxx.onrender.com` |
+| Variable | `GOOGLE_CLIENT_ID` | web client ID |
+| Variable | `ADMOB_APP_ID` | `ca-app-pub-…~…` |
+| Variable | `ADMOB_BANNER_ID` | `ca-app-pub-…/…` |
+| Variable | `ADMOB_INTERSTITIAL_ID` | `ca-app-pub-…/…` |
+| Secret | `KEYSTORE_BASE64` | 3. adımda panoya kopyalanan metin |
+| Secret | `KEYSTORE_PASSWORD` | anahtar deposu şifresi |
+| Secret | `KEY_ALIAS` | `upload` |
+| Secret | `KEY_PASSWORD` | anahtar şifresi |
+
+Sonra **Actions → Android AAB → Run workflow**. 5-10 dakika sonra çalıştırmanın sayfasındaki **Artifacts**
+bölümünden `app-release.aab` dosyasını indir. Her çalıştırmada sürüm kodu otomatik artar.
+
+## 7. Play Console
+1. https://play.google.com/console → geliştirici hesabı (tek seferlik ücret). Yeni kişisel hesaplarda yayından önce
+   **en az 12 test kullanıcısıyla 14 gün kapalı test** zorunlu.
+2. **Uygulama oluştur:** "Match Baller", varsayılan dil Türkçe, **Oyun**, ücretsiz.
+3. **Mağaza girişi:** metinler ve görseller `store/listing.md` ve `store/` klasöründe.
+4. **Uygulama içeriği:** gizlilik politikası URL'si (`/privacy.html`), **Reklam içerir: Evet**, içerik derecelendirme,
+   veri güvenliği (cevaplar `store/listing.md` sonunda), hedef yaş 13+,
+   **Reklam kimliği** beyanı: Evet, reklam için kullanılıyor.
+5. **Test → Kapalı test:** yeni sürüm → `.aab` yükle → test kullanıcılarını ekle.
+6. 4. adımın son maddesi: Play imzalama SHA-1'i ile ikinci Android client'ı oluştur.
+7. Test süresi dolunca **Üretim**'e gönder.
+
+## Güncellemeler
+- **Sunucu tarafı** (eşleşme, puanlama, veriler): GitHub'a gönder → Render otomatik yayınlar. Uygulamayı güncellemek gerekmez.
+- **Arayüz** (ekranlar, tasarım, sesler, metinler): uygulamanın içinde olduğu için 6. adımı tekrar çalıştır
+  ve yeni `.aab`'yi Play Console'a yükle.

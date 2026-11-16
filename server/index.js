@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { Server } from 'socket.io';
@@ -83,6 +83,31 @@ function upsertUser(id, name, picture) {
 
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
+// ---------- Oturum anahtarları ----------
+// Google ile giren kullanıcı her açılışta yeniden giriş yapmasın: sunucu rastgele bir anahtar verir,
+// cihaz saklar. Sunucuda sadece özeti tutulur; hesap başına en fazla 5 cihaz.
+const hashToken = t => createHash('sha256').update(String(t)).digest('hex');
+const sessionIndex = new Map(); // özet -> kullanıcı kimliği
+function indexSessions() {
+  sessionIndex.clear();
+  for (const u of Object.values(users)) for (const h of u.sessions || []) sessionIndex.set(h, u.id);
+}
+function issueSession(user) {
+  const token = randomBytes(32).toString('base64url');
+  const h = hashToken(token);
+  user.sessions = [...(user.sessions || []), h].slice(-5);
+  indexSessions();
+  saveUsers();
+  return token;
+}
+function revokeSession(user, token) {
+  if (!user || !token) return;
+  user.sessions = (user.sessions || []).filter(h => h !== hashToken(token));
+  indexSessions();
+  saveUsers();
+}
+indexSessions();
+
 // ---------- HTTP ----------
 const app = express();
 app.set('trust proxy', 1);
@@ -100,7 +125,14 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
 app.use(express.static(fileURLToPath(new URL('../public', import.meta.url)), {
   setHeaders: (res, file) => { if (file.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache'); },
 }));
+app.use('/api', (_req, res, next) => { res.setHeader('Access-Control-Allow-Origin', '*'); next(); });
 app.get('/api/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
+// AdMob: reklam envanteri doğrulaması (ADMOB_PUBLISHER_ID=pub-xxxxxxxxxxxxxxxx)
+app.get('/app-ads.txt', (_req, res) => {
+  const pub = process.env.ADMOB_PUBLISHER_ID;
+  if (!pub) return res.status(404).send('');
+  res.type('text/plain').send(`google.com, ${pub}, DIRECT, f08c47fec0942fa0\n`);
+});
 app.get('/api/teams', (_req, res) => res.sendFile(fileURLToPath(dataUrl('teams.json'))));
 app.get('/api/countries', (_req, res) => res.sendFile(fileURLToPath(dataUrl('countries.json'))));
 
@@ -314,7 +346,13 @@ io.on('connection', socket => {
   socket.on('auth', async (payload, ack) => {
     try {
       let user;
-      if (payload?.googleCredential) {
+      let token = null;
+      if (payload?.sessionToken) {
+        const id = sessionIndex.get(hashToken(payload.sessionToken));
+        if (!id || !users[id]) throw new Error('Oturum süresi doldu');
+        user = users[id];
+        token = payload.sessionToken;
+      } else if (payload?.googleCredential) {
         if (!googleClient) throw new Error('Google girişi sunucuda ayarlı değil');
         const ticket = await googleClient.verifyIdToken({ idToken: payload.googleCredential, audience: GOOGLE_CLIENT_ID });
         const p = ticket.getPayload();
@@ -335,10 +373,19 @@ io.on('connection', socket => {
         throw new Error('Geçersiz giriş');
       }
       socket.data.user = user;
-      ack?.({ ok: true, user: publicUser(user) });
+      // Bot ve test hesapları dışındaki herkese kalıcı oturum anahtarı ver
+      if (!token && !botIds.has(user.id)) token = issueSession(user);
+      ack?.({ ok: true, user: publicUser(user), sessionToken: token });
     } catch (err) {
       ack?.({ ok: false, error: err.message });
     }
+  });
+
+  socket.on('logout', ({ sessionToken } = {}, ack) => {
+    if (socket.data.user) revokeSession(users[uidOf(socket)], sessionToken);
+    removeFromQueue(socket);
+    socket.data.user = null;
+    ack?.({ ok: true });
   });
 
   socket.on('profile', (_p, ack) => {
@@ -361,6 +408,7 @@ io.on('connection', socket => {
       if (s !== socket) s.emit('account:deleted');
     }
     delete users[id];
+    indexSessions();
     saveUsers();
     console.log('Hesap silindi');
     ack?.({ ok: true });

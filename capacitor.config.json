@@ -1,0 +1,13 @@
+{
+  "appId": "com.matchballer.app",
+  "appName": "Match Baller",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#1f7a3a"
+  },
+  "plugins": {
+    "SocialLogin": {
+      "providers": { "google": true, "facebook": false, "apple": false, "twitter": false }
+    }
+  }
+}

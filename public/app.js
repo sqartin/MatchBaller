@@ -1,14 +1,22 @@
 /* global io, google */
 import { LANGS, t, setLang, getLang, pickInitialLang, applyI18n } from './i18n.js';
 import { createSfx } from './sfx.js';
+import { initAds, onScreen as adsOnScreen, onMatchEnd as adsOnMatchEnd, maybeInterstitial } from './ads.js';
 const $ = id => document.getElementById(id);
-const socket = io();
+
+// Web'de sunucu aynı adreste; Android uygulamasında config.js içindeki adrese bağlanılır
+const CFG = window.MB_CONFIG || {};
+const API = CFG.apiBase || '';
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const Plugins = window.Capacitor?.Plugins || {};
+const socket = API ? io(API, { transports: ['websocket'] }) : io();
 const state = { user: null, teams: [], countries: [], myTeam: null, timers: [], mode: 'cc', role: 'club' };
 
 // ---------- Yardımcılar ----------
 function show(name) {
   document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== `screen-${name}`; });
   window.scrollTo(0, 0);
+  adsOnScreen(name);
 }
 function clearTimers() { state.timers.forEach(clearInterval); state.timers = []; }
 const store = {
@@ -72,8 +80,14 @@ for (const key of ['sound', 'vibration']) {
 // ---------- Ses ve titreşim ----------
 const sfx = createSfx(() => settings.sound);
 function buzz(pattern) {
+  if (!settings.vibration) return;
+  if (NATIVE && Plugins.Haptics) {
+    const ms = Array.isArray(pattern) ? pattern.reduce((a, b, i) => (i % 2 ? a : a + b), 0) : pattern;
+    Plugins.Haptics.vibrate({ duration: Math.min(ms, 400) }).catch(() => {});
+    return;
+  }
   // Tarayıcı, kullanıcı sayfaya hiç dokunmadan titreşime izin vermez
-  if (!settings.vibration || !navigator.vibrate || navigator.userActivation?.hasBeenActive === false) return;
+  if (!navigator.vibrate || navigator.userActivation?.hasBeenActive === false) return;
   try { navigator.vibrate(pattern); } catch { /* desteklenmiyor */ }
 }
 // Tüm butonlarda hafif tık sesi
@@ -100,17 +114,21 @@ function setAvatar(el, user) {
 }
 
 // ---------- Giriş ----------
-async function login(payload) {
+async function login(payload, { silent = false } = {}) {
   const r = await emit('auth', payload);
-  if (!r.ok) { $('login-error').textContent = t('login_failed'); return false; }
+  if (!r.ok) {
+    if (payload.sessionToken) store.del('session');            // süresi dolmuş/iptal edilmiş anahtar
+    if (!silent) $('login-error').textContent = t('login_failed');
+    return false;
+  }
   state.user = r.user;
+  if (r.sessionToken) store.set('session', JSON.stringify({ token: r.sessionToken }));
   goHome();
   return true;
 }
 
 function savedSession() {
-  const s = store.get('session');
-  return s ? JSON.parse(s) : null;
+  try { return JSON.parse(store.get('session') || 'null'); } catch { return null; }
 }
 
 $('guest-form').addEventListener('submit', async e => {
@@ -119,12 +137,33 @@ $('guest-form').addEventListener('submit', async e => {
   if (!name) return;
   const guestId = store.get('guestId') || crypto.randomUUID();
   store.set('guestId', guestId);
-  if (await login({ guestId, name })) store.set('session', JSON.stringify({ guestId, name }));
+  await login({ guestId, name });
 });
 
+async function setupNativeGoogle(clientId) {
+  const SocialLogin = Plugins.SocialLogin;
+  if (!SocialLogin) { $('or-line').hidden = true; return; }
+  await SocialLogin.initialize({ google: { webClientId: clientId } });
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-white btn-google';
+  btn.innerHTML = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.4-4.7 7.1l7.3 5.7c4.3-4 7.1-9.9 7.1-17.3z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.3-5.7c-2 1.4-4.7 2.3-8.6 2.3-6.3 0-11.7-4.1-13.6-9.8l-7.8 6C6.6 42.6 14.6 48 24 48z"/></svg><span></span>';
+  btn.querySelector('span').textContent = t('google_continue');
+  btn.addEventListener('click', async () => {
+    try {
+      const res = await SocialLogin.login({ provider: 'google', options: { scopes: ['profile', 'email'] } });
+      const idToken = res?.result?.idToken;
+      if (idToken) await login({ googleCredential: idToken });
+    } catch { $('login-error').textContent = t('login_failed'); }
+  });
+  $('google-btn').replaceChildren(btn);
+}
+
 async function setupGoogle() {
-  const { googleClientId } = await fetch('/api/config').then(r => r.json());
+  const { googleClientId: serverClientId } = await fetch(`${API}/api/config`).then(r => r.json());
+  const googleClientId = CFG.googleClientId || serverClientId;
   if (!googleClientId) { $('or-line').hidden = true; return; }
+  if (NATIVE) return setupNativeGoogle(googleClientId);
   await new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
@@ -134,13 +173,9 @@ async function setupGoogle() {
   google.accounts.id.initialize({
     client_id: googleClientId,
     locale: getLang(),
-    callback: async ({ credential }) => {
-      if (await login({ googleCredential: credential })) store.set('session', JSON.stringify({ google: true }));
-    },
-    auto_select: true,
+    callback: async ({ credential }) => { await login({ googleCredential: credential }); },
   });
   google.accounts.id.renderButton($('google-btn'), { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', width: 300, locale: getLang() });
-  if (savedSession()?.google) google.accounts.id.prompt();
 }
 
 $('delete-account-btn').addEventListener('click', async () => {
@@ -163,9 +198,11 @@ socket.on('account:deleted', () => {
   show('login');
 });
 
-$('logout-btn').addEventListener('click', () => {
+$('logout-btn').addEventListener('click', async () => {
+  await emit('logout', { sessionToken: savedSession()?.token });
   store.del('session');
   if (window.google?.accounts) google.accounts.id.disableAutoSelect();
+  if (NATIVE) Plugins.SocialLogin?.logout?.({ provider: 'google' }).catch(() => {});
   state.user = null;
   show('login');
 });
@@ -261,7 +298,10 @@ $('lb-btn').addEventListener('click', openLeaderboard);
 $('home-stats').addEventListener('click', openLeaderboard);
 document.querySelectorAll('.tabs [data-period]').forEach(b => b.addEventListener('click', () => { lbPeriod = b.dataset.period; loadLeaderboard(); }));
 $('profile-btn').addEventListener('click', goProfile);
-document.querySelectorAll('[data-go="home"]').forEach(b => b.addEventListener('click', goHome));
+document.querySelectorAll('[data-go="home"]').forEach(b => b.addEventListener('click', async () => {
+  if (b.closest('#screen-result')) await maybeInterstitial();
+  goHome();
+}));
 
 // ---------- Mod seçimi & rakip arama ----------
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => startSearch(b.dataset.mode)));
@@ -277,16 +317,17 @@ function startSearch(mode = state.mode) {
   state.timers.push(setInterval(() => { $('search-time').textContent = t('seconds', { n: Math.floor((Date.now() - t0) / 1000) }); }, 1000));
 }
 $('play-btn').addEventListener('click', () => show('mode'));
-$('again-btn').addEventListener('click', () => startSearch(state.mode));
+$('again-btn').addEventListener('click', async () => { await maybeInterstitial(); startSearch(state.mode); });
 
 // Paylaş: telefonun paylaşım menüsü (WhatsApp, Instagram…); yoksa panoya kopyala
 $('share-btn').addEventListener('click', async () => {
   if (!lastMatch) return;
   const { result, score, rank, opponent } = lastMatch;
   const text = t(`share_${result}`, { me: score.me, opp: score.opp, name: opponent || '', rank: rank || '-' });
-  const data = { title: 'Match Baller', text, url: location.origin };
+  const data = { title: 'Match Baller', text, url: CFG.shareUrl || API || location.origin };
   try {
-    if (navigator.share) await navigator.share(data);
+    if (NATIVE && Plugins.Share) await Plugins.Share.share({ ...data, dialogTitle: t('share') });
+    else if (navigator.share) await navigator.share(data);
     else { await navigator.clipboard.writeText(`${text} ${data.url}`); $('share-btn').textContent = t('copied'); setTimeout(() => { $('share-btn').textContent = t('share'); }, 1500); }
   } catch { /* kullanıcı vazgeçti */ }
 });
@@ -297,13 +338,13 @@ socket.on('queue:error', code => { alert(t(code)); goHome(); });
 async function loadList(kind) {
   if (kind === 'country') {
     if (!state.countries.length) {
-      state.countries = (await fetch('/api/countries').then(r => r.json()))
+      state.countries = (await fetch(`${API}/api/countries`).then(r => r.json()))
         .map(c => ({ ...c, key: norm(`${c.name} ${c.en || ''}`) }));
     }
     return;
   }
   if (state.teams.length) return;
-  state.teams = (await fetch('/api/teams').then(r => r.json()))
+  state.teams = (await fetch(`${API}/api/teams`).then(r => r.json()))
     .map(x => ({ ...x, key: norm(`${x.name} ${x.en || ''} ${x.country}`) }));
 }
 
@@ -618,6 +659,7 @@ function countUp(el, from, to, ms = 900) {
 let lastMatch = null;
 
 socket.on('match:end', ({ result, forfeit, score, me, progress }) => {
+  adsOnMatchEnd();
   lastMatch = { result, score, rank: me?.rank, opponent: state.opponent?.name };
   clearTimers();
   closeSuggest();
@@ -654,11 +696,15 @@ socket.on('match:end', ({ result, forfeit, score, me, progress }) => {
 // ---------- Başlat ----------
 socket.on('connect', async () => {
   const s = savedSession();
-  if (state.user && s?.guestId) return login(s);            // yeniden bağlanma
-  if (!state.user && s?.guestId) { $('guest-name').value = s.name; return login(s); }
+  if (s?.token) return login({ sessionToken: s.token }, { silent: true });
+  // eski sürümden kalan misafir oturumu
+  if (s?.guestId) return login({ guestId: s.guestId, name: s.name }, { silent: true });
 });
 socket.on('disconnect', () => { if (state.user) { clearTimers(); hideOverlays(); setInMatch(false); show('home'); } });
 
 translatePage();
 setupGoogle().catch(() => {});
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (!NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Uygulamada gizlilik sayfası sunucudan açılır
+if (API) document.querySelectorAll('a[href="/privacy.html"]').forEach(a => { a.href = `${API}/privacy.html`; });
+initAds();

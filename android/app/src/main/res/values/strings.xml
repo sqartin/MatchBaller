@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Match Baller</string>
+    <string name="title_activity_main">Match Baller</string>
+    <string name="package_name">com.matchballer.app</string>
+    <string name="custom_url_scheme">com.matchballer.app</string>
+</resources>
