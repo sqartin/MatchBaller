@@ -1,28 +1,28 @@
-# Render Blueprint: Match Baller sunucusu
+# Render Blueprint: Match Baller sunucusu (ücretsiz plan)
 # Render → New → Blueprint → bu depoyu seç. Ayarlar buradan otomatik okunur.
+#
+# Ücretsiz planda kalıcı disk yok: kullanıcı verisi MongoDB Atlas'ın ücretsiz veritabanında tutulur (MONGODB_URI).
+# Ücretsiz plan 15 dakika boşta kalınca uyur; ilk giren oyuncu yaklaşık 1 dakika bekleyebilir.
 services:
   - type: web
     name: match-baller
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # Kalıcı disk ücretsiz planda yok; kullanıcı verisi (sıralama, istatistik) için en az "starter" gerekir.
-    plan: starter
+    plan: free
     region: frankfurt
     healthCheckPath: /healthz
     autoDeploy: true
-    disk:
-      name: match-baller-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
-      - key: DATA_DIR
-        value: /data
       - key: NODE_ENV
         value: production
       # Aşağıdakileri Render panelinde sen gir (sync: false = depoya yazılmaz)
+      - key: MONGODB_URI
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: ANDROID_PACKAGE
         sync: false
       - key: ANDROID_SHA256
+        sync: false
+      - key: ADMOB_PUBLISHER_ID
         sync: false

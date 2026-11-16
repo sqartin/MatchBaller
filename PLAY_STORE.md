@@ -13,15 +13,34 @@ Sıra:
 ## 1. Kodu GitHub'a yükle
 GitHub'da boş bir depo aç ve kodu yükle.
 
-## 2. Sunucuyu Render'da yayına al
-1. https://dashboard.render.com → **New → Blueprint** → GitHub deposunu seç. `render.yaml` her şeyi kurar
-   (Docker, Frankfurt, `/data` kalıcı disk, `/healthz`).
-2. Ortam değişkenlerini gir: `GOOGLE_CLIENT_ID` (web client ID).
-3. Yayına girince adresin olur: `https://match-baller-xxxx.onrender.com`. Kontrol et:
-   - `/` oyun açılıyor mu, `/privacy.html` açılıyor mu.
-4. `public/privacy.html` içindeki `[İLETİŞİM E-POSTASI]` / `[CONTACT EMAIL]` yerlerine bir e-posta yaz.
-5. Google Cloud → Google Auth Platform → Clients → web client → **Authorized JavaScript origins** listesine
-   Render adresini ekle (web sürümünde Google girişi için).
+## 2. Sunucuyu yayına al (ücretsiz: Render + MongoDB Atlas)
+
+Render'ın ücretsiz planında kalıcı disk yok; kullanıcı verisi (hesaplar, kupalar, sıralama) ücretsiz
+**MongoDB Atlas** veritabanında tutulur.
+
+**a) MongoDB Atlas (ücretsiz veritabanı)**
+1. https://www.mongodb.com/cloud/atlas/register → hesap aç.
+2. **Create cluster → M0 (Free)**, sağlayıcı AWS, bölge **Frankfurt (eu-central-1)**.
+3. **Database Access → Add New Database User:** kullanıcı adı ve güçlü bir şifre belirle (şifreyi bir yere yaz).
+4. **Network Access → Add IP Address → Allow access from anywhere (0.0.0.0/0)** (Render'ın ücretsiz planında sabit IP yok).
+5. **Database → Connect → Drivers** → bağlantı adresini kopyala:
+   `mongodb+srv://KULLANICI:<db_password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority`
+   `<db_password>` yerine 3. adımdaki şifreyi yaz.
+
+**b) Render**
+1. https://dashboard.render.com → **New → Blueprint** → `sqartin/MatchBaller` deposunu seç. `render.yaml` ücretsiz planı kurar.
+2. İstenen değerler:
+   - `MONGODB_URI` → Atlas bağlantı adresi
+   - `GOOGLE_CLIENT_ID` → Google Cloud web client ID
+   - `ANDROID_PACKAGE`, `ANDROID_SHA256`, `ADMOB_PUBLISHER_ID` → şimdilik boş bırakılabilir
+3. Yayına girince adresin olur: `https://match-baller-xxxx.onrender.com`. Loglarda `Kullanıcı verisi: MongoDB` yazmalı.
+4. Kontrol: `/` oyun açılıyor mu, `/privacy.html` açılıyor mu.
+5. `public/privacy.html` içindeki `[İLETİŞİM E-POSTASI]` / `[CONTACT EMAIL]` yerlerine bir e-posta yaz.
+6. Google Cloud → Google Auth Platform → Clients → web client → **Authorized JavaScript origins**
+   listesine Render adresini ekle (web sürümünde Google girişi için).
+
+> Ücretsiz Render sunucusu 15 dakika boşta kalınca uyur, ilk giren oyuncu ~1 dakika bekler.
+> Oyun büyüyünce Render'da planı **Starter**'a yükseltmek bu beklemeyi kaldırır (veri Atlas'ta olduğu için hiçbir şey taşınmaz).
 
 ## 3. Uygulama imza (yükleme) anahtarı
 Bu bilgisayarda bir kere çalıştır (Java kurulu). Şifreleri sen belirle ve bir yere yaz:

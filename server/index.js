@@ -12,6 +12,7 @@ import { suggest, playerCount, reloadPlayers } from './players.js';
 import { scheduleRefresh } from './refresh.js';
 import { spawnBot } from './bot.js';
 import { ensureFields, applyResult, leagueOf, leaderboard } from './progress.js';
+import { createUserStore } from './store.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -54,14 +55,14 @@ scheduleRefresh(async () => {
 // ---------- Kullanıcılar (basit JSON dosyası) ----------
 // Bot hesapları normal misafir gibi görünür (istemci botu ayırt edemez); sadece sunucu bilir.
 const botIds = new Set();
-let users = {};
-try { users = JSON.parse(await readFile(USERS_FILE, 'utf8')); } catch { /* ilk çalıştırma */ }
+// Kalıcı depo: MONGODB_URI varsa MongoDB, yoksa dosya (botlar ve test hesapları kaydedilmez)
+const userStore = await createUserStore({ file: USERS_FILE, mongoUri: process.env.MONGODB_URI, skip: id => botIds.has(id) });
+let users = await userStore.load();
 let saveTimer;
 const saveUsers = () => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const real = Object.fromEntries(Object.entries(users).filter(([id]) => !botIds.has(id)));
-    writeFile(USERS_FILE, JSON.stringify(real, null, 2)).catch(err => console.error('users.json yazılamadı:', err.message));
+    userStore.save(users).catch(err => console.error('Kullanıcı verisi kaydedilemedi:', err.message));
   }, 300);
 };
 const publicUser = u => {
