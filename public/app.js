@@ -155,6 +155,14 @@ $('delete-account-btn').addEventListener('click', async () => {
   show('login');
 });
 
+socket.on('account:deleted', () => {
+  store.del('session');
+  store.del('guestId');
+  state.user = null;
+  clearTimers();
+  show('login');
+});
+
 $('logout-btn').addEventListener('click', () => {
   store.del('session');
   if (window.google?.accounts) google.accounts.id.disableAutoSelect();

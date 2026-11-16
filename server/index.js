@@ -67,7 +67,7 @@ const saveUsers = () => {
 const publicUser = u => {
   ensureFields(u);
   return {
-    id: u.id, name: u.name, picture: u.picture, wins: u.wins, losses: u.losses, draws: u.draws,
+    id: u.publicId, name: u.name, picture: u.picture, wins: u.wins, losses: u.losses, draws: u.draws,
     trophies: u.trophies, league: leagueOf(u.trophies), streak: u.streak, bestStreak: u.bestStreak,
   };
 };
@@ -144,7 +144,7 @@ function scheduleBot(socket, mode) {
         decoys: ['Lionel Messi', 'Cristiano Ronaldo', 'Neymar', 'Kylian Mbappé', 'Zlatan Ibrahimović', 'Luka Modrić', 'Mohamed Salah', 'Robert Lewandowski'],
       }),
       answersFor: async botId => {
-        const room = [...rooms.values()].find(r => r.players.some(p => p.data.user?.id === botId));
+        const room = [...rooms.values()].find(r => r.players.some(p => p.data.user?.publicId === botId));
         return room ? room.answersReady : null;
       },
     });
@@ -152,7 +152,7 @@ function scheduleBot(socket, mode) {
 }
 
 // ---------- Maç: 3 raund alan kazanır ----------
-const uidOf = s => s.data.user.id;
+const uidOf = s => s.data.user?.id;
 const other = (room, s) => room.players.find(x => x !== s);
 
 function startMatch(a, b, mode) {
@@ -221,7 +221,7 @@ function finishPicking(room) {
   const teamsPayload = room.players.map(s => {
     const uid = uidOf(s);
     const kind = room.roles[uid];
-    return { userId: uid, kind, team: lookup(kind).get(room.picks[uid].id), random: room.picks[uid].random || false };
+    return { userId: s.data.user.publicId, kind, team: lookup(kind).get(room.picks[uid].id), random: room.picks[uid].random || false };
   });
   io.to(room.id).emit('match:teams', { mode: room.mode, round: room.round, teams: teamsPayload });
   io.to(room.id).emit('round:countdown', { ms: COUNTDOWN_MS });
@@ -288,7 +288,7 @@ function endMatch(room, { forfeitBy = null } = {}) {
   const progress = {};
   for (const s of room.players) {
     const result = !winner ? 'draw' : s === winner ? 'win' : 'loss';
-    progress[uidOf(s)] = applyResult(users[uidOf(s)], result);
+    if (users[uidOf(s)]) progress[uidOf(s)] = applyResult(users[uidOf(s)], result);
   }
   saveUsers();
 
@@ -299,7 +299,7 @@ function endMatch(room, { forfeitBy = null } = {}) {
       result: !winner ? 'draw' : s === winner ? 'win' : 'loss',
       forfeit: !!forfeitBy,
       score: { me: room.score[uidOf(s)], opp: room.score[uidOf(opp)] },
-      me: { ...publicUser(users[uidOf(s)]), rank: rankOf(uidOf(s)) },
+      me: users[uidOf(s)] ? { ...publicUser(users[uidOf(s)]), rank: rankOf(uidOf(s)) } : null,
       progress: progress[uidOf(s)],
     });
   }
@@ -324,7 +324,9 @@ io.on('connection', socket => {
         botIds.add(id);
         user = upsertUser(id, String(payload.name || 'Oyuncu').slice(0, 20), null);
       } else if (payload?.guestId && payload?.name) {
-        const id = `guest:${String(payload.guestId).slice(0, 64)}`;
+        // guestId misafirin gizli anahtarıdır (cihazda üretilen rastgele UUID); kısa/tahmin edilebilir olanları reddet
+        if (!/^[\w-]{16,64}$/.test(String(payload.guestId))) throw new Error('Geçersiz giriş');
+        const id = `guest:${String(payload.guestId)}`;
         const name = String(payload.name).trim().slice(0, 20) || 'Misafir';
         // Otomatik test hesapları (e2e-…) kaydedilmez ve sıralamada görünmez
         if (String(payload.guestId).startsWith('e2e-')) botIds.add(id);
@@ -340,7 +342,7 @@ io.on('connection', socket => {
   });
 
   socket.on('profile', (_p, ack) => {
-    if (!socket.data.user) return ack?.({ ok: false });
+    if (!socket.data.user || !users[uidOf(socket)]) return ack?.({ ok: false });
     ack?.({ ok: true, user: { ...publicUser(users[uidOf(socket)]), rank: rankOf(uidOf(socket)) } });
   });
 
@@ -348,12 +350,18 @@ io.on('connection', socket => {
   socket.on('account:delete', (_p, ack) => {
     if (!socket.data.user) return ack?.({ ok: false });
     const id = uidOf(socket);
-    removeFromQueue(socket);
-    const room = rooms.get(socket.data.roomId);
-    if (room) endMatch(room, { forfeitBy: socket });
+    // Aynı hesap başka cihaz/sekmede de açık olabilir: hepsini maçtan ve sıradan çıkar, oturumlarını kapat
+    for (const s of io.sockets.sockets.values()) {
+      if (s.data.user?.id !== id) continue;
+      clearTimeout(s.data.botTimer);
+      removeFromQueue(s);
+      const room = rooms.get(s.data.roomId);
+      if (room) endMatch(room, { forfeitBy: s });
+      s.data.user = null;
+      if (s !== socket) s.emit('account:deleted');
+    }
     delete users[id];
     saveUsers();
-    socket.data.user = null;
     console.log('Hesap silindi');
     ack?.({ ok: true });
   });
@@ -437,6 +445,10 @@ io.on('connection', socket => {
     if (room) endMatch(room, { forfeitBy: socket });
   });
 });
+
+// Beklenmeyen bir hata tüm oyuncuların maçını düşürmesin: kaydet ve çalışmaya devam et
+process.on('uncaughtException', err => console.error('Beklenmeyen hata:', err));
+process.on('unhandledRejection', err => console.error('Yakalanmamış söz:', err));
 
 http.listen(PORT, () => {
   console.log(`Match Baller çalışıyor: http://localhost:${PORT} (${teams.length} kulüp, ${playerCount()} futbolcu)`);
