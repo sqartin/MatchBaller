@@ -13,6 +13,10 @@ on:
   push:
     tags: ['v*']
 
+# GITHUB_TOKEN sadece kodu okuyabilsin
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,7 +33,10 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      # Android SDK, GitHub'ın ubuntu sunucularında hazır gelir (ANDROID_HOME). İmza anahtarı bu işte
+      # kullanıldığı için üçüncü taraf eylem çalıştırılmaz; sadece GitHub'ın kendi actions/* eylemleri var.
+      - name: Android SDK kontrol
+        run: test -d "$ANDROID_HOME" && echo "SDK: $ANDROID_HOME"
 
       - name: Bağımlılıklar
         run: npm ci
