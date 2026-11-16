@@ -1,0 +1,28 @@
+# Render Blueprint: Match Baller sunucusu
+# Render → New → Blueprint → bu depoyu seç. Ayarlar buradan otomatik okunur.
+services:
+  - type: web
+    name: match-baller
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Kalıcı disk ücretsiz planda yok; kullanıcı verisi (sıralama, istatistik) için en az "starter" gerekir.
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: match-baller-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: NODE_ENV
+        value: production
+      # Aşağıdakileri Render panelinde sen gir (sync: false = depoya yazılmaz)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: ANDROID_PACKAGE
+        sync: false
+      - key: ANDROID_SHA256
+        sync: false

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f7a3a">
+  <title>Match Baller</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="description" content="Online futbol bilgi düellosu. İki kulüpte de oynamış futbolcuyu rakibinden önce bul.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Russo+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="ball" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="46" fill="#fff" stroke="#0e2414" stroke-width="5"/>
+      <path d="M50 30 L66 42 L60 61 L40 61 L34 42 Z" fill="#0e2414"/>
+      <path d="M50 30 V8 M66 42 L88 35 M60 61 L74 81 M40 61 L26 81 M34 42 L12 35" stroke="#0e2414" stroke-width="5" fill="none"/>
+    </symbol>
+    <symbol id="trophy" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v4H8v-4h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3zm-1 4v1a2 2 0 0 0 1.2 1.8A5 5 0 0 1 7 8.5V7zm12 0v1.5a5 5 0 0 1-.2 1.3A2 2 0 0 0 19 8V7z"/>
+    </symbol>
+    <symbol id="gear" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/>
+    </symbol>
+  </svg>
+
+  <main id="app">
+
+    <!-- Maç skor tabelası (maç boyunca üstte) -->
+    <div class="scorebar" id="scorebar" hidden aria-live="polite">
+      <div class="sb-side">
+        <span class="avatar" id="sb-me-avatar"></span>
+        <span class="sb-name" id="sb-me-name"></span>
+      </div>
+      <div class="sb-center">
+        <div class="sb-score"><span id="sb-me">0</span><i>–</i><span id="sb-opp">0</span></div>
+        <div class="sb-round"><span id="sb-round"></span><span data-i18n="first_to"></span></div>
+      </div>
+      <div class="sb-side sb-right">
+        <span class="sb-name" id="sb-opp-name"></span>
+        <span class="avatar" id="sb-opp-avatar"></span>
+      </div>
+    </div>
+
+    <!-- Giriş -->
+    <section class="screen" id="screen-login">
+      <header class="topbar topbar-end">
+        <button class="chip chip-icon" data-go="settings" data-i18n-label="settings"><svg><use href="#gear"/></svg></button>
+      </header>
+      <div class="brand">
+        <svg class="brand-ball"><use href="#ball"/></svg>
+        <h1 class="logo">Match<span>Baller</span></h1>
+      </div>
+      <div class="panel login-panel">
+        <p class="lede" data-i18n="tagline"></p>
+        <div id="google-btn" class="google-slot"></div>
+        <div class="or" id="or-line"><span data-i18n="or"></span></div>
+        <form id="guest-form" class="stack">
+          <label for="guest-name" class="field-label" data-i18n="guest_label"></label>
+          <input id="guest-name" maxlength="20" autocomplete="nickname" data-i18n-ph="guest_ph" required>
+          <button class="btn btn-white" data-i18n="guest_btn"></button>
+        </form>
+        <p class="error" id="login-error" role="alert"></p>
+      </div>
+      <p class="legal"><a href="/privacy.html" target="_blank" rel="noopener" data-i18n="privacy"></a></p>
+    </section>
+
+    <!-- Ana ekran -->
+    <section class="screen" id="screen-home" hidden>
+      <header class="topbar">
+        <button class="chip me" id="open-profile" data-i18n-label="profile">
+          <span class="avatar" id="home-avatar"></span>
+          <span id="home-name"></span>
+        </button>
+        <button class="chip chip-icon" data-go="settings" data-i18n-label="settings"><svg><use href="#gear"/></svg></button>
+      </header>
+      <div class="home-hero">
+        <svg class="brand-ball brand-ball-lg"><use href="#ball"/></svg>
+        <h1 class="logo">Match<span>Baller</span></h1>
+        <button class="home-stats" id="home-stats" type="button">
+          <span class="league-badge" id="home-league"></span>
+          <span class="hs-item"><svg><use href="#trophy"/></svg><b id="home-trophies">0</b></span>
+          <span class="hs-item hs-rank" id="home-rank"></span>
+        </button>
+        <p class="record" id="home-record"></p>
+      </div>
+      <div class="stack">
+        <button class="btn btn-play" id="play-btn" data-i18n="play"></button>
+        <div class="btn-row btn-row-3">
+          <button class="btn btn-white" id="lb-btn" data-i18n="leaderboard"></button>
+          <button class="btn btn-white" id="profile-btn" data-i18n="profile"></button>
+          <button class="btn btn-white" data-go="settings" data-i18n="settings"></button>
+        </div>
+      </div>
+      <details class="panel rules">
+        <summary data-i18n="how_to"></summary>
+        <p data-i18n="rules"></p>
+      </details>
+    </section>
+
+    <!-- Mod seçimi -->
+    <section class="screen" id="screen-mode" hidden>
+      <header class="topbar"><button class="chip back" data-go="home" data-i18n="back"></button></header>
+      <h2 data-i18n="mode_title"></h2>
+      <div class="mode-list">
+        <button class="mode-card" data-mode="cc">
+          <span class="mode-art" aria-hidden="true">
+            <span class="mode-chip mode-club"></span><span class="mode-vs">VS</span><span class="mode-chip mode-club"></span>
+          </span>
+          <span class="mode-text"><strong data-i18n="mode_cc"></strong><small data-i18n="mode_cc_desc"></small></span>
+        </button>
+        <button class="mode-card" data-mode="nc">
+          <span class="mode-art" aria-hidden="true">
+            <span class="mode-chip mode-flag"></span><span class="mode-vs">VS</span><span class="mode-chip mode-club"></span>
+          </span>
+          <span class="mode-text"><strong data-i18n="mode_nc"></strong><small data-i18n="mode_nc_desc"></small></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Profil -->
+    <section class="screen" id="screen-profile" hidden>
+      <header class="topbar"><button class="chip back" data-go="home" data-i18n="back"></button></header>
+      <div class="panel profile-card">
+        <span class="avatar avatar-lg" id="profile-avatar"></span>
+        <h2 id="profile-name"></h2>
+        <div class="profile-league">
+          <span class="league-badge" id="profile-league"></span>
+          <span class="hs-item"><svg><use href="#trophy"/></svg><b id="profile-trophies">0</b></span>
+          <span class="hs-item" id="profile-rank"></span>
+        </div>
+        <dl class="stats">
+          <div class="st-w"><dt data-i18n="wins"></dt><dd id="st-w">0</dd></div>
+          <div class="st-d"><dt data-i18n="draws"></dt><dd id="st-d">0</dd></div>
+          <div class="st-l"><dt data-i18n="losses"></dt><dd id="st-l">0</dd></div>
+        </dl>
+        <p class="best-streak"><span data-i18n="best_streak"></span>: <b id="st-best">0</b></p>
+        <div class="league-ladder" id="league-ladder"></div>
+      </div>
+    </section>
+
+    <!-- Sıralama -->
+    <section class="screen" id="screen-leaderboard" hidden>
+      <header class="topbar"><button class="chip back" data-go="home" data-i18n="back"></button></header>
+      <h2 data-i18n="leaderboard"></h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-period="all" data-i18n="all_time"></button>
+        <button role="tab" aria-selected="false" data-period="week" data-i18n="this_week"></button>
+      </div>
+      <div class="podium" id="podium"></div>
+      <ol class="lb-list" id="lb-list"></ol>
+      <div class="lb-me" id="lb-me" hidden></div>
+    </section>
+
+    <!-- Ayarlar -->
+    <section class="screen" id="screen-settings" hidden>
+      <header class="topbar"><button class="chip back" id="settings-back" data-i18n="back"></button></header>
+      <h2 data-i18n="settings"></h2>
+
+      <div class="panel settings-group">
+        <h3 data-i18n="language"></h3>
+        <div class="lang-grid" id="lang-grid" role="radiogroup"></div>
+      </div>
+
+      <div class="panel settings-group">
+        <button class="toggle-row" id="toggle-sound" role="switch" aria-checked="true">
+          <span><strong data-i18n="sound"></strong><small data-i18n="sound_hint"></small></span>
+          <span class="switch" aria-hidden="true"></span>
+        </button>
+        <button class="toggle-row" id="toggle-vibration" role="switch" aria-checked="true">
+          <span><strong data-i18n="vibration"></strong><small data-i18n="vibration_hint"></small></span>
+          <span class="switch" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div class="panel settings-group" id="account-group" hidden>
+        <h3 data-i18n="account"></h3>
+        <p class="account-line" id="account-line"></p>
+        <button class="btn btn-white" id="logout-btn" data-i18n="logout"></button>
+        <button class="link-danger" id="delete-account-btn" type="button" data-i18n="delete_account"></button>
+      </div>
+      <p class="version"><a href="/privacy.html" target="_blank" rel="noopener" data-i18n="privacy"></a> · Match Baller v1.0</p>
+    </section>
+
+    <!-- Rakip aranıyor -->
+    <section class="screen screen-center" id="screen-search" hidden>
+      <div class="bounce" aria-hidden="true"><svg><use href="#ball"/></svg><span class="shadow"></span></div>
+      <h2 data-i18n="searching"></h2>
+      <p class="chip" id="search-time"></p>
+      <button class="btn btn-white" id="cancel-search" data-i18n="cancel"></button>
+    </section>
+
+    <!-- Takım seçimi -->
+    <section class="screen" id="screen-pick" hidden>
+      <div class="pick-head" aria-live="polite">
+        <div>
+          <h2 id="pick-title"></h2>
+          <p class="opp-line"><span data-i18n="opponent"></span>: <strong id="pick-opp"></strong> <span id="opp-role"></span> <span class="tick" id="opp-picked" data-i18n="picked" hidden></span></p>
+        </div>
+        <div class="board"><span class="board-count" id="pick-count">25</span></div>
+      </div>
+      <div class="timebar"><span id="pick-bar"></span></div>
+      <input id="team-search" type="search" autocomplete="off">
+      <ul class="team-list" id="team-list"></ul>
+      <p class="error" id="pick-error" role="alert"></p>
+    </section>
+
+    <!-- Maç -->
+    <section class="screen" id="screen-game" hidden>
+      <div class="versus">
+        <div class="side side-me" id="side-me"></div>
+        <div class="center-circle">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="44"/><circle class="ring" id="ring" cx="50" cy="50" r="44"/></svg>
+          <span id="game-count">90</span>
+        </div>
+        <div class="side side-opp" id="side-opp"></div>
+      </div>
+      <p class="hint" id="game-hint"></p>
+      <div class="guess-wrap">
+        <form id="guess-form" class="guess">
+          <input id="guess-input" data-i18n-ph="guess_ph" autocomplete="off" autocapitalize="words" spellcheck="false"
+                 role="combobox" aria-autocomplete="list" aria-controls="suggest" aria-expanded="false" disabled>
+          <button class="btn btn-go" disabled id="guess-btn" data-i18n="send"></button>
+        </form>
+        <ul class="suggest" id="suggest" role="listbox" hidden></ul>
+      </div>
+      <div class="pass-row">
+        <button class="btn btn-white btn-pass" id="pass-btn" type="button" disabled data-i18n="pass"></button>
+        <p class="pass-status" id="pass-status" aria-live="polite"></p>
+      </div>
+      <p class="opp-attempts" id="opp-attempts"></p>
+      <ul class="tries" id="tries"></ul>
+    </section>
+
+    <!-- Sonuç -->
+    <section class="screen screen-center" id="screen-result" hidden>
+      <div class="card-flash" id="result-card" aria-hidden="true"></div>
+      <img class="result-photo" id="result-photo" alt="" hidden>
+      <h1 class="result-title" id="result-title"></h1>
+      <p class="result-score" id="result-score"></p>
+      <p class="lede" id="result-text"></p>
+      <div id="result-sample" class="sample"></div>
+      <div class="progress-card" id="progress-card" hidden>
+        <div class="pc-trophy"><svg><use href="#trophy"/></svg><b id="pc-delta">+0</b></div>
+        <div class="pc-lines">
+          <p id="pc-total"></p>
+          <p id="pc-streak" hidden></p>
+          <p class="pc-league" id="pc-league" hidden></p>
+        </div>
+      </div>
+      <div class="stack">
+        <button class="btn btn-play" id="again-btn" data-i18n="play_again"></button>
+        <button class="btn btn-go" id="share-btn" data-i18n="share"></button>
+        <button class="btn btn-white" data-go="home" data-i18n="home"></button>
+      </div>
+    </section>
+
+    <!-- 3-2-1 geri sayım -->
+    <div class="countdown" id="countdown" hidden aria-live="assertive">
+      <span class="countdown-num" id="countdown-num">3</span>
+    </div>
+
+    <!-- Raund sonucu -->
+    <div class="round-result" id="round-result" hidden aria-live="polite">
+      <div class="rr-card">
+        <img class="rr-photo" id="rr-photo" alt="" hidden>
+        <h2 id="rr-title"></h2>
+        <p id="rr-text"></p>
+        <p class="rr-sample" id="rr-sample"></p>
+        <p class="rr-next" id="rr-next"></p>
+      </div>
+    </div>
+
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
