@@ -36,7 +36,9 @@ jobs:
       # Android SDK, GitHub'ın ubuntu sunucularında hazır gelir (ANDROID_HOME). İmza anahtarı bu işte
       # kullanıldığı için üçüncü taraf eylem çalıştırılmaz; sadece GitHub'ın kendi actions/* eylemleri var.
       - name: Android SDK kontrol
-        run: test -d "$ANDROID_HOME" && echo "SDK: $ANDROID_HOME"
+        run: |
+          test -d "$ANDROID_HOME"
+          echo "Android SDK -> $ANDROID_HOME"
 
       - name: Bağımlılıklar
         run: npm ci
