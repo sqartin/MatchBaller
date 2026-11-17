@@ -28,10 +28,12 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      # cache: gradle -> Android kütüphaneleri önbelleğe alınır; her derlemede Maven'dan tekrar indirilmez
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
 
       # Android SDK, GitHub'ın ubuntu sunucularında hazır gelir (ANDROID_HOME). İmza anahtarı bu işte
       # kullanıldığı için üçüncü taraf eylem çalıştırılmaz; sadece GitHub'ın kendi actions/* eylemleri var.
@@ -61,7 +63,8 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew bundleRelease --no-daemon
+          # Maven sunucusu geçici olarak "çok fazla istek" (429) dönebilir: başarısız olursa bekleyip bir kez daha dene
+          ./gradlew bundleRelease --no-daemon || (sleep 60 && ./gradlew bundleRelease --no-daemon)
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
