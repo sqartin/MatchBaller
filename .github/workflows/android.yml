@@ -1,6 +1,8 @@
-# Android uygulamasını (.aab) derler ve imzalar. Play Console'a yüklenecek dosya "Artifacts" bölümünden indirilir.
+# Android uygulamasını derler ve imzalar. Dosya, çalıştırmanın sayfasındaki "Artifacts" bölümünden indirilir.
 #
-# Çalıştırmak için: GitHub → Actions → "Android AAB" → Run workflow
+# Çalıştırmak için: GitHub → Actions → "Android AAB" → Run workflow → paket türünü seç:
+#   - aab       : Play Console'a yüklenecek paket (gerçek reklamlar)
+#   - test-apk  : telefona doğrudan kurmak için APK (Google'ın TEST reklamları; kendi telefonunda güvenle denenir)
 #
 # Gerekenler (GitHub → Settings → Secrets and variables → Actions):
 #   Variables:  APP_API_BASE (https://...onrender.com), GOOGLE_CLIENT_ID,
@@ -10,6 +12,12 @@ name: Android AAB
 
 on:
   workflow_dispatch:
+    inputs:
+      paket:
+        description: 'Paket türü'
+        type: choice
+        options: ['aab', 'test-apk']
+        default: 'aab'
   push:
     tags: ['v*']
 
@@ -20,6 +28,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Etiketle tetiklenince giriş yoktur: aab
+      PAKET: ${{ inputs.paket || 'aab' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,13 +56,14 @@ jobs:
       - name: Bağımlılıklar
         run: npm ci
 
+      # test-apk: reklam birimi kimlikleri verilmez -> build-app.mjs Google'ın TEST birimlerini kullanır
       - name: Web dosyaları (www/)
         run: npm run build:app
         env:
           APP_API_BASE: ${{ vars.APP_API_BASE }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
-          ADMOB_BANNER_ID: ${{ vars.ADMOB_BANNER_ID }}
-          ADMOB_INTERSTITIAL_ID: ${{ vars.ADMOB_INTERSTITIAL_ID }}
+          ADMOB_BANNER_ID: ${{ env.PAKET == 'aab' && vars.ADMOB_BANNER_ID || '' }}
+          ADMOB_INTERSTITIAL_ID: ${{ env.PAKET == 'aab' && vars.ADMOB_INTERSTITIAL_ID || '' }}
 
       - name: Capacitor senkron
         run: npx cap sync android
@@ -59,12 +71,15 @@ jobs:
       - name: İmza anahtarı
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.keystore"
 
-      - name: AAB derle
+      - name: Derle
         working-directory: android
         run: |
           chmod +x gradlew
+          TASK=bundleRelease
+          if [ "$PAKET" = "test-apk" ]; then TASK=assembleRelease; fi
+          echo "Gradle görevi: $TASK"
           # Maven sunucusu geçici olarak "çok fazla istek" (429) dönebilir: başarısız olursa bekleyip bir kez daha dene
-          ./gradlew bundleRelease --no-daemon || (sleep 60 && ./gradlew bundleRelease --no-daemon)
+          ./gradlew $TASK --no-daemon || (sleep 60 && ./gradlew $TASK --no-daemon)
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -74,7 +89,14 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.0.${{ github.run_number }}
 
-      - uses: actions/upload-artifact@v4
+      - if: env.PAKET == 'aab'
+        uses: actions/upload-artifact@v4
         with:
           name: match-baller-aab-${{ github.run_number }}
           path: android/app/build/outputs/bundle/release/app-release.aab
+
+      - if: env.PAKET == 'test-apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: match-baller-test-apk-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
